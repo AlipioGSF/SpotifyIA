@@ -21,7 +21,7 @@ print(tipos_de_dados)
 
 print(sklearn.__version__)
 # Selecione as colunas relevantes para o agrupamento
-selected_columns = ['streams', 'danceability_%', 'energy_%']
+selected_columns = ['danceability_%', 'energy_%', 'speechiness_%']
 
 # Crie uma matriz de características
 X = df[selected_columns]
@@ -51,18 +51,18 @@ fig = plt.figure(figsize=(12, 10))
 ax = fig.add_subplot(111, projection='3d')
 
 # Scatter plot dos dados
-ax.scatter(df['streams'], df['danceability_%'], df['energy_%'], c=df['cluster_label'], cmap='viridis', label='Dados')
+ax.scatter(df['speechiness_%'], df['danceability_%'], df['energy_%'], c=df['cluster_label'], cmap='viridis', label='Dados')
 
 # Scatter plot dos centroides
-ax.scatter(df_centroids['streams'], df_centroids['danceability_%'], df_centroids['energy_%'], c='red', marker='X', s=200, label='Centroides')
+ax.scatter(df_centroids['speechiness_%'], df_centroids['danceability_%'], df_centroids['energy_%'], c='red', marker='X', s=200, label='Centroides')
 
 ax.set_title('K-Means Clustering com Centroides')
-ax.set_xlabel('Streams')
+ax.set_xlabel('Speechiness %')
 ax.set_ylabel('Danceability %')
 ax.set_zlabel('Energy %')
 
 # Ajuste da escala dos eixos para garantir precisão na visualização
-ax.set_xlim(df['streams'].min(), df['streams'].max())
+ax.set_xlim(df['speechiness_%'].min(), df['speechiness_%'].max())
 ax.set_ylim(df['danceability_%'].min(), df['danceability_%'].max())
 ax.set_zlim(df['energy_%'].min(), df['energy_%'].max())
 
@@ -97,3 +97,46 @@ def recomended(track):
         return json.dumps(suggested_playlist_names)
     else:
         return(f'Música "{track}" não encontrada no banco de dados.')
+
+
+def mix(track, types_music):
+
+    curr_track = df[df['track_name'] == track]
+    select_types = types_music
+
+    if not curr_track.empty:
+
+        # Extraia os valores das características
+        user_song_features = curr_track[select_types].values
+
+        # Normalização dos dados usando o mesmo scaler do K-Means
+        user_song_features_scaled = scaler.transform(user_song_features)
+
+        # Atribuição ao cluster usando o modelo K-Means
+        user_cluster = kmeans.predict(user_song_features_scaled)[0]
+
+        # Recupere outras músicas do mesmo cluster
+        suggested_playlist = df[df['cluster_label'] == user_cluster]
+
+        # Calcule a distância euclidiana entre a música do usuário e as outras músicas no cluster
+        distances = np.linalg.norm(suggested_playlist[select_types].values - user_song_features_scaled, axis=1)
+
+        # Ordene as músicas pelo valor da distância (quanto menor, mais parecida)
+        suggested_playlist = suggested_playlist.copy()  # Crie uma cópia explícita
+        suggested_playlist['distance'] = distances
+        suggested_playlist = suggested_playlist.sort_values(by='distance').head(15)
+
+        # Crie uma playlist sugerida
+        suggested_playlist_names = suggested_playlist['track_name'].tolist()
+
+        return json.dumps(suggested_playlist_names)
+        
+    else:
+        print(f'Música "{curr_track}" não encontrada no banco de dados.')
+
+
+def get_all_songs():
+    songs = df[df['track_name']]
+    return json.dumps(songs)
+
+
